@@ -180,7 +180,7 @@ void sendRequestFindFile(int currentCon, char *fileName){
     pointer = headShareList;
     linkConn *headListConnHasFile = NULL;
     address *headListAddrHasFile = NULL;
-    int connfd;
+    int connfd,connfd1;
     int bytes_sent = 0;
     int bytes_received = 0;
     char buff[BUFF_SIZE+1];
@@ -254,6 +254,17 @@ void sendRequestFindFile(int currentCon, char *fileName){
     	printf("Client ID has been choosed: %s\n", buff);
     	connfd = atoi(buff);
 
+    	address *tmp2 = headListAddrHasFile;
+    	while (tmp2 != NULL)
+		{
+			connfd1 = *tmp2->connfd;
+			if(connfd1 != connfd && connfd1 != currentCon){
+				send(connfd1,FILE_NOT_FOUND, BUFF_SEND, 0);
+			}
+
+			tmp2 = tmp2->next;
+    	}	
+
     	temp = findByConn(connfd);
     	printf("Client will get file : %s\n", temp->addressIP);
 
@@ -261,6 +272,8 @@ void sendRequestFindFile(int currentCon, char *fileName){
 
     	receiveFile(connfd,fileName);
     	sendFile(currentCon,fileName);
+
+
 
     }
 

@@ -212,6 +212,8 @@ void shareMode(int client_sock){
 		printf("%s\n", buff);
 		if (strcmp(buff,SEND_FILE_REQUEST) == 0){
 			sendFile(client_sock,filename);
+		}else{
+			return;
 		}
 
 	}else{
