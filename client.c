@@ -41,6 +41,60 @@ typedef struct tagClient
 client *head = NULL;
 client *current = NULL;
 
+client* findById(char *id){
+   client* current = head;
+   char idCheck[20];
+   if(head == NULL){
+      return NULL;
+   }
+   while(current != NULL ){
+   	  strcpy(idCheck,current->id);
+   	  if (strcmp(idCheck,id) == 0)
+   	  {
+   	  	return current;
+   	  }
+      current = current->next;
+   }
+   return current;
+}
+
+void InsertHeadList(char *id,char *addressIP)
+{
+	client *new = (client *)malloc(sizeof(client));
+
+	strcpy(new->addressIP,addressIP);
+	strcpy(new->id,id);
+	new->next=head;
+	head=new;
+}
+char *trymString(char * str)
+{
+	// const char s[1]="\n";
+	const char *s="-\n";
+	char *token;
+	char addressIP[256];
+	char id[20];
+	 /* lay token dau tien */
+   token = strtok(str, s);
+   int i=0;
+   /* duyet qua cac token con lai */
+   while( token != NULL ) 
+   {
+      if(i%2==0)
+      {
+      	strcpy(addressIP,token);
+      	
+      }else
+      {
+      	strcpy(id,token);
+      	InsertHeadList(id,addressIP);
+      }
+    	i++;
+      token = strtok(NULL, s);
+   }
+   return token;
+}
+
 void sendFile(int client_sock, char *fileName){
     
     FILE *fileptr;
@@ -136,17 +190,36 @@ void searchMode(int client_sock){
 		return;
 	}
 	strcpy(listClientShare, buff);
+	trymString(listClientShare);
    	printf("%s\n", "============================");
    	printf("%s\n", "List client has file :");
-   	printf("%s", listClientShare);
-
+   	// printf("%s", listClientShare);
+   	client *tmp = head;
+   	int i = 0;
+   	printf("%-5s %-15s %-25s \n", "STT","IP Address","ID");
+   	while(tmp != NULL){
+   		i++;
+   		printf("%-5d %-15s %-25s \n",i,tmp->addressIP,tmp->id);
+   		tmp = tmp ->next;
+   	}
    	printf("%s\n", "============================");
    	printf("%s\n", "Enter ID Client to get file :");
-   	scanf("%s", clientID);
+   	while(1){
+   		scanf("%s", clientID);
+   		tmp = findById(clientID);
+   		if (tmp != NULL)
+   		{
+   			break;
+   		}else{
+   			printf("%s\n", "Client not exist, Enter ID Client again :");
+   		}
+
+   	}
+   	
    	bytes_sent = send(client_sock, clientID, BUFF_SIZE, 0);
 
    	receiveFile(client_sock,filename);
-
+   	head = NULL;
 
 }
 

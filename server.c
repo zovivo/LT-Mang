@@ -235,13 +235,14 @@ void sendRequestFindFile(int currentCon, char *fileName){
 			char connStr[20];
 			sprintf(connStr, "%d", connfd);
 			sprintf(STT, "%d", i);
-			strcat(listClient,"Client ");
-			strcat(listClient,STT);
-			strcat(listClient,": IP: ");
+			// strcat(listClient,"Client ");
+			// strcat(listClient,STT);
+			// strcat(listClient,": IP: ");
 			strcat(listClient,tmp->addressIP);
-			strcat(listClient," -------- ID: ");
+			strcat(listClient,"-");
+			// strcat(listClient," -------- ID: ");
 			strcat(listClient,connStr);
-			strcat(listClient,enter);
+			strcat(listClient,"\n");
 			tmp = tmp->next;
     	}
 
