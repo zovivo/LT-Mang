@@ -29,33 +29,56 @@ typedef struct tagAddress
 {
     char addressIP[256];
     int *connfd;
+    int id;
     struct tagAddress *next;
-} address;
+} client;
 
-typedef struct tagConnfd
-{
-    int connfd;
-    struct tagConnfd *next;
-} linkConn;
 
-address *head = NULL;
-address *current = NULL;
+client *head = NULL;
+client *current = NULL;
 
-linkConn *headShareList = NULL;
-linkConn *headSearchList = NULL;
+client *headShareList = NULL;
+client *headSearchList = NULL;
 
-void insertListConn(int connfd, linkConn *ptr);
-address* findByConn(int connfd);
+client *findByConn(int connfd);
 void *mainFunction(void *);
-address *insertListAddr(address addr, address *ptr);
+void searchFileHandle(int connfd);
+client *insertListAddr(client addr, client *ptr);
 
-linkConn *deleteNode(linkConn *head_ref, int key) 
+client *insertListAddr(client addr, client *ptr)
+{	
+	printf("%s : %d\n",addr.addressIP,*addr.connfd );
+    client *link = (client *)malloc(sizeof(client));
+    strcpy(link->addressIP, addr.addressIP);
+    link->connfd = (int *)malloc(sizeof(int));
+    *link->connfd = *(addr.connfd);
+    link->id = addr.id;
+    link->next = ptr;
+    ptr = link;
+    printf("%s : %d : %d\n",ptr->addressIP,*ptr->connfd, ptr->id );
+    return ptr;
+}
+
+client *insertClient(client *addr, client *ptr)
+{	
+    client *link = (client *)malloc(sizeof(client));
+    strcpy(link->addressIP, addr->addressIP);
+    link->connfd = (int *)malloc(sizeof(int));
+    *link->connfd = *(addr->connfd);
+    link->id = addr->id;
+    link->next = ptr;
+    ptr = link;
+    printf("%s : %d : %d\n",ptr->addressIP,*ptr->connfd, ptr->id );
+    return ptr;
+}
+
+client *deleteNode(client *head_ref, int key) 
 { 
     // Store head node 
-    linkConn* temp = head_ref, *prev; 
+    client* temp = head_ref, *prev; 
   
     // If head node itself holds the key to be deleted 
-    if (temp != NULL && temp->connfd == key) 
+    if (temp != NULL && *temp->connfd == key) 
     { 
         head_ref = temp->next;   // Changed head 
         free(temp);               // free old head 
@@ -64,7 +87,7 @@ linkConn *deleteNode(linkConn *head_ref, int key)
   
     // Search for the key to be deleted, keep track of the 
     // previous node as we need to change 'prev->next' 
-    while (temp != NULL && temp->connfd != key) 
+    while (temp != NULL && *temp->connfd != key) 
     { 
         prev = temp; 
         temp = temp->next; 
@@ -126,6 +149,7 @@ void sendFile(int connfd, char *fileName){
     fclose(fileptr); //close file
 }
 
+
 void receiveFile(int conn, char *fileName){
 	FILE *filePtr;
 	char name[100];
@@ -175,11 +199,44 @@ void receiveFile(int conn, char *fileName){
 	fclose(filePtr);
 }
 
-void sendRequestFindFile(int currentCon, char *fileName){
-	linkConn *pointer;
+void InsertHead(client addr)
+{
+    client *link = (client *)malloc(sizeof(client));
+    strcpy(link->addressIP, addr.addressIP);
+    if (head == NULL)
+    {
+    	link->id = 0;
+    }else{
+    	int id = head->id;
+    	link->id = id+1;
+    }
+    link->connfd = addr.connfd;
+    *link->connfd = *(addr.connfd);
+    link->next = head;
+    head = link;
+}
+
+void insertShareList(int connfd)
+{
+    client *link = (client *)malloc(sizeof(client));
+    *link->connfd = connfd;
+    link->next = headShareList;
+    headShareList = link;
+}
+
+void insertSearchList(int connfd)
+{
+    client *link = (client *)malloc(sizeof(client));
+    *link->connfd = connfd;
+    link->next = headSearchList;
+    headSearchList = link;
+}
+
+void sendRequestFindFile(int currentCon, char *fileName,int idClientFrom){
+	client *pointer;
     pointer = headShareList;
-    linkConn *headListConnHasFile = NULL;
-    address *headListAddrHasFile = NULL;
+    client *headListConnHasFile = NULL;
+    client *headListAddrHasFile = NULL;
     int connfd,connfd1;
     int bytes_sent = 0;
     int bytes_received = 0;
@@ -190,72 +247,60 @@ void sendRequestFindFile(int currentCon, char *fileName){
     pthread_t tid;
    	int *connPtr;
 
-
-    address *temp = (address *)malloc(sizeof(address));
+    client *temp = (client *)malloc(sizeof(client));
 
 	while (pointer != NULL)
 	{
-		printf("pointer: %d\n", pointer->connfd);
-		connfd = pointer->connfd;
-		printf("Send request find file to %d\n", connfd);
+
+		if (pointer->id != idClientFrom)
+		{
+			/* code */
+		
+		connfd = *pointer->connfd;
 		bytes_sent = send(connfd, fileName, BUFF_SEND, 0);
-		printf("wait for %d\n", connfd);
+		// bytes_sent = send(connfd, fileName, BUFF_SEND, 0);
 		bytes_received = recv(connfd, buff, BUFF_SIZE, 0);
-		printf("bytes_received: %d\n", bytes_received);
+		// printf("bytes_received: %d\n", bytes_received);
 		buff[bytes_received] = '\0';
-		printf("buff: %s\n", buff);
 		if(strcmp(buff,FILE_EXIST)==0){
 			printf("%s\n", FILE_EXIST);
 			temp = findByConn(connfd);
 			headListAddrHasFile = insertListAddr(*temp,headListAddrHasFile);
 
 		}
-		// else{
-		// 	connPtr = &connfd;
-		// 	pthread_create(&tid, NULL, &mainFunction, connPtr);
-		// }
+		}
 		pointer = pointer->next;
 
     }
-    printf("%s : \n",headListAddrHasFile->addressIP );
     if(headListAddrHasFile == NULL)
-    {
+    {	
     	bytes_sent = send(currentCon,FILE_NOT_FOUND, BUFF_SEND, 0);
     }
     if (headListAddrHasFile != NULL)
     {
-    	printf("%s\n", "Send list client !");
-    	address *tmp = headListAddrHasFile;
-    	int i = 0;
-    	char STT[3];
+    	client *tmp = headListAddrHasFile;
+    	memset(listClient,0,sizeof(listClient));
+    	printf("listClient: %s\n", listClient);
     	while (tmp != NULL)
 		{
-			i++;
 			connfd = *tmp->connfd;
 			char connStr[20];
 			sprintf(connStr, "%d", connfd);
-			sprintf(STT, "%d", i);
-			// strcat(listClient,"Client ");
-			// strcat(listClient,STT);
-			// strcat(listClient,": IP: ");
 			strcat(listClient,tmp->addressIP);
 			strcat(listClient,"-");
-			// strcat(listClient," -------- ID: ");
 			strcat(listClient,connStr);
 			strcat(listClient,"\n");
+			printf("%s\n", listClient);
 			tmp = tmp->next;
     	}
-
     	bytes_sent = send(currentCon,listClient, BUFF_SEND, 0);
-    	printf("listClient: %s\n", listClient);
     	memset(listClient,0,sizeof(listClient));
-    	printf("%s\n", "Sended list client !");
     	bytes_received = recv(currentCon, buff, BUFF_SIZE, 0);
     	buff[bytes_received] = '\0';
     	printf("Client ID has been choosed: %s\n", buff);
     	connfd = atoi(buff);
 
-    	address *tmp2 = headListAddrHasFile;
+    	client *tmp2 = headListAddrHasFile;
     	while (tmp2 != NULL)
 		{
 			connfd1 = *tmp2->connfd;
@@ -278,47 +323,18 @@ void sendRequestFindFile(int currentCon, char *fileName){
 
     }
 
-    headShareList = NULL;
-    headSearchList = NULL;
-    address *tmp1 = head;
-    while (tmp1 != NULL)
-	{	
-		pthread_create(&tid, NULL, &mainFunction, tmp1->connfd);
-		tmp1 = tmp1->next;	
-	}
+    searchFileHandle(currentCon);
+
+ 
 
 }
 
-void insertListConn(int connfd, linkConn *ptr)
-{
-    linkConn *link = (linkConn *)malloc(sizeof(linkConn));
-    link->connfd = connfd;
-    link->next = ptr;
-    ptr = link;
-}
-
-void insertShareList(int connfd)
-{
-    linkConn *link = (linkConn *)malloc(sizeof(linkConn));
-    link->connfd = connfd;
-    link->next = headShareList;
-    headShareList = link;
-}
-
-void insertSearchList(int connfd)
-{
-    linkConn *link = (linkConn *)malloc(sizeof(linkConn));
-    link->connfd = connfd;
-    link->next = headSearchList;
-    headSearchList = link;
-}
-
-address* findByConn(int connfd){
-   address* current = head;
+client* findById(int idClient){
+   client* current = head;
    if(head == NULL){
       return NULL;
    }
-   while(*current->connfd != connfd){
+   while(current->id != idClient){
 
       if(current->next == NULL){
          return NULL;
@@ -329,28 +345,25 @@ address* findByConn(int connfd){
    return current;
 } 
 
-address *insertListAddr(address addr, address *ptr)
-{	
-	printf("%s : %d\n",addr.addressIP,*addr.connfd );
-    address *link = (address *)malloc(sizeof(address));
-    strcpy(link->addressIP, addr.addressIP);
-    link->connfd = (int *)malloc(sizeof(int));
-    *link->connfd = *(addr.connfd);
-    link->next = ptr;
-    ptr = link;
-    printf("%s : %d\n",ptr->addressIP,*ptr->connfd );
-    return ptr;
-}
+client* findByConn(int connfd){
+	printf("connfd: %d\n", connfd);
+   client* current = (client *)malloc(sizeof(client));
+   current = head;
+   if(head == NULL){
+   	printf("%s\n", "NULL");
+      return NULL;
+   }
+   while(current != NULL){
+   	if (*current->connfd == connfd)
+   	{
+   		return current;
+   	}
+   	current = current->next;
 
-void InsertHead(address addr)
-{
-    address *link = (address *)malloc(sizeof(address));
-    strcpy(link->addressIP, addr.addressIP);
-    link->connfd = (int *)malloc(sizeof(int));
-    *link->connfd = *(addr.connfd);
-    link->next = head;
-    head = link;
-}
+   }
+   
+   return NULL;
+} 
 
 int main(int argc, char const *argv[])
 { 
@@ -367,6 +380,7 @@ int main(int argc, char const *argv[])
 	struct sockaddr_in *client; /* client's address information */
 	int sin_size;
 	pthread_t tid;
+	int idClient = 0;
 
 	if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){  /* calls socket() */
 		perror("\nError: ");
@@ -396,20 +410,64 @@ int main(int argc, char const *argv[])
 			perror("\nError: ");
 				
 		printf("You got a connection from %s\n", inet_ntoa(client->sin_addr) ); /* prints client's IP */
-		address tempAddr;
+		struct tagAddress tempAddr;
 		strcpy(tempAddr.addressIP,inet_ntoa(client->sin_addr));
 		// printf(" %d \n", *connfd);
 		tempAddr.connfd = malloc(sizeof(int));
 		tempAddr.connfd = connfd;
-		printf(" %d \n", *(tempAddr.connfd));
+		if (head == NULL)
+		{
+			tempAddr.id = 0;
+		}else{
+			tempAddr.id = head->id;
+		}
+		
         InsertHead(tempAddr);
+        printf("%s\n", "List Client :");
+        
 		/* For each client, spawns a thread, and the thread handles the new client */
 		pthread_create(&tid, NULL, &mainFunction, connfd);	
-		printf("%s\n", "aaaaaaaaaaa");
 	}
 	
 	close(listenfd);
 	return 0;
+}
+
+void searchFileHandle(int connfd){
+	char fileName[BUFF_SIZE+1];
+	int bytes_sent, bytes_received;
+	bytes_received = recv(connfd, fileName, BUFF_SIZE, 0);
+	if (bytes_received <= 0){
+		client *temp = findByConn(connfd);
+		client *temp2 = headShareList;
+		while(temp2 != NULL){
+			if(temp2->id == temp->id){
+				break;
+			}
+			temp2 = temp2->next;
+		}
+		printf("Share connfd close : %d\n", *temp2->connfd);
+		deleteNode(head,*temp2->connfd);
+		deleteNode(head,*temp->connfd);
+		deleteNode(headShareList,*temp2->connfd);
+		printf("Connection closed.");
+		close(connfd);
+		close(connfd);
+		return;
+	}
+	fileName[bytes_received] = '\0';
+	client* tmp10 = head;
+	int id;
+	printf("main connf: %d\n", connfd);
+	while(tmp10 != NULL){
+		id = tmp10->id;
+		if(*tmp10->connfd == connfd){
+			break;
+		}
+		tmp10 = tmp10-> next;
+	}
+	printf("File need to find: %s\n", fileName);
+	sendRequestFindFile(connfd,fileName,id);
 }
 
 void *mainFunction(void *arg){
@@ -419,88 +477,73 @@ void *mainFunction(void *arg){
 	char fileName[BUFF_SIZE+1];
 	char chooseMode[BUFF_SIZE];
 	int *connPtr;
+	char idClient[10];
 	connfd = *((int *) arg);
 	// free(arg);
 	pthread_detach(pthread_self());
 
-	address *ptr;
+	client *ptr;
     ptr = head;
 
-    printf("NEW %s\n", "===================");
+    client *temp = findByConn(connfd);
+    sprintf(idClient, "%d", temp->id);
 
-    while (ptr != NULL)
-    {
-    	printf("%s %d \n", ptr->addressIP, *ptr->connfd);
-       	ptr = ptr->next;
-    }
-	
+    bytes_sent = send(connfd,idClient, BUFF_SEND, 0);
+
+
+
+
+    printf("NEW %s\n", "===================");
+   
 	bytes_received = recv(connfd, chooseMode, BUFF_SIZE, 0); //blocking
 	if (bytes_received < 0)
 		perror("\nError: ");
-	else if (bytes_received == 0)
+	else if (bytes_received == 0){
+		printf("%s\n", "AAAAAAAAAAAAAAAAAAAAAAA");
+		printf("%s\n", "Quit");
 		printf("Connection closed.");
+	}
 
 	chooseMode[bytes_received] = '\0';
 
 	if(strcmp(chooseMode,SHARE_MODE) ==0 ){
-		printf("%s\n", "This client choose SHARE_MODE");
-		
-		headShareList = deleteNode(headShareList,connfd);
-		headSearchList = deleteNode(headSearchList,connfd);
-		insertShareList(connfd);
+		int idClient;
+		bytes_received = recv(connfd, buff, BUFF_SIZE, 0);
+		buff[bytes_received] = '\0';
+		printf("background connfd: %d idClient : %s\n", connfd,buff);
+		idClient = atoi(buff);
+		client *ptr1 = headSearchList;
 
-		linkConn *ptr1;
-    	ptr1 = headShareList;
-    	while (ptr1 != NULL)
-    	{
-    		printf("%s %d \n", "Share connfd: ", ptr1->connfd);
-       		ptr1 = ptr1->next;
-    	}
+		ptr1 = findById(idClient);
 
-    	ptr1 = headSearchList;
-    	while (ptr1 != NULL)
-    	{
-    		printf("%s %d \n", "Search connfd: ", ptr1->connfd);
-       		ptr1 = ptr1->next;
-    	}
+		client *tempClient = (client *)malloc(sizeof(client));
+    	strcpy(tempClient->addressIP, ptr1->addressIP);
+    	tempClient->connfd = (int *)malloc(sizeof(int));
+    	*tempClient->connfd = connfd;
+    	tempClient->id = ptr1->id;
+
+		// *ptr1->connfd = connfd;
+
+		headShareList = insertClient(tempClient,headShareList);
+		free(tempClient);   
+
+		// insertShareList(connfd);
+
+
+    	// ptr1 = headShareList;
+    	// printf("%s\n", "background list");
+    	// while (ptr1 != NULL)
+    	// {
+    	// 	printf("%s %d ID : %d \n", "Share connfd: ", *ptr1->connfd,ptr1->id);
+     //   		ptr1 = ptr1->next;
+    	// }
 
 
 	}
 	if(strcmp(chooseMode,SEARCH_MODE) ==0 ){
-		printf("%s\n", "This client choose SEARCH_MODE");
-		
-		headSearchList = deleteNode(headSearchList,connfd);
-		headShareList = deleteNode(headShareList,connfd);
+		printf("%s\n", "SEARCH_MODE");
 
-		insertSearchList(connfd);
-
-		
-
-
-		linkConn *ptr1;
-		ptr1 = headSearchList;
-    	while (ptr1 != NULL)
-    	{
-    		printf("%s %d \n", "Search connfd: ", ptr1->connfd);
-       		ptr1 = ptr1->next;
-    	}
-
-
-    	ptr1 = headShareList;
-    	while (ptr1 != NULL)
-    	{
-    		printf("%s %d \n", "Share connfd: ", ptr1->connfd);
-       		ptr1 = ptr1->next;
-    	}
-
-		bytes_received = recv(connfd, fileName, BUFF_SIZE, 0);
-		fileName[bytes_received] = '\0';
-
-
-		printf("File need to find: %s\n", fileName);
-		sendRequestFindFile(connfd,fileName);
-
-		printf("END  %s\n", "================");
+		searchFileHandle(connfd);
 
 
     	
